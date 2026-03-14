@@ -35,6 +35,8 @@ function Dashboard() {
   function resetList() {
     setSongs([]);
     setVibe("");
+    setIsDownloaded(false);
+    setIsDownloading(false);
   }
 
   async function requestDownload() {
