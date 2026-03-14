@@ -6,6 +6,7 @@ function Search() {
   const [searchTerm, setSearchTerm] = useState("");
   const [SearchResults, setSearchResults] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [downloading, setDownloading] = useState(false);
 
   async function handleSearch() {
     try {
@@ -26,6 +27,29 @@ function Search() {
 
   function handleSelect(index) {
     setSelected(index);
+  }
+
+  function handleDownload() {
+    const song = SearchResults[selected];
+    // send song info to backend to handle download
+    setDownloading(true);
+    fetch("http://localhost:3001/download-songs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ songs: [song] }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success) {
+          // show success message
+          console.log(data.message);
+          setDownloading(false);
+        } else {
+          // show error message
+          console.error("Download failed:", data.message);
+          setDownloading(false);
+        }
+      });
   }
 
   return (
@@ -53,10 +77,14 @@ function Search() {
           albumArt={result.albumArt}
           selected={selected === index}
           onSelect={() => handleSelect(index)}
+          downloading={downloading && selected === index}
         />
       ))}
       {selected !== null && (
-        <button className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md ml-2">
+        <button
+          className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md ml-2"
+          onClick={handleDownload}
+        >
           Download
         </button>
       )}
