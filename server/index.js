@@ -45,6 +45,25 @@ async function getSongMetadata(artist, name) {
   }
 }
 
+function searchItunes(term) {
+  return new Promise((resolve, reject) => {
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(
+      term,
+    )}&limit=5&entity=song`;
+    fetch(url)
+      .then((response) => response.json())
+      .then((data) =>
+        resolve(
+          data.results.map((result) => ({
+            name: result.trackName,
+            artist: result.artistName,
+            albumArt: result.artworkUrl100,
+          })),
+        ),
+      )
+      .catch((error) => reject(error));
+  });
+}
 // Wraps exec in a Promise so we can use async/await
 function executeCommand(command) {
   return new Promise((resolve, reject) => {
@@ -194,6 +213,16 @@ app.post("/download-songs", async (req, res) => {
   }
 });
 
+app.post("/search-itunes", async (req, res) => {
+  const { term } = req.body;
+  try {
+    const result = await searchItunes(term);
+    res.json({ results: result });
+  } catch (error) {
+    console.error("Error searching iTunes:", error);
+    res.status(500).json({ error: "Failed to search iTunes" });
+  }
+});
 // ─── Start Server ─────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
