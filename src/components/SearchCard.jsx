@@ -9,15 +9,21 @@ function SearchCard({
 }) {
   return (
     <div
-      className={`bg-zinc-600 p-4 m-4 rounded-lg cursor-pointer hover:shadow-lg hover:shadow-green-500/50 transition-transform duration-200 hover:scale-105 ${selected ? "ring-2 ring-green-500" : ""} ${downloading ? "animate-bounce" : ""}`}
+      className={`bg-zinc-800 p-4 m-4 rounded-xl cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-green-500/30 ${selected ? "ring-2 ring-green-500 bg-zinc-700" : ""} ${downloading ? "animate-bounce" : ""}`}
       onClick={onSelect}
     >
       <div className="flex gap-4 items-center">
-        <img src={albumArt} alt={Album} className="w-16 h-16 rounded-md" />
-        <div className="flex flex-col items-center">
-          <h2 className="text-xl font-bold">{name}</h2>
-          <p>{artist}</p>
-          <p>{Album}</p>
+        <img
+          src={albumArt || "https://placehold.co/64x64?text=?"}
+          alt={name}
+          className="w-16 h-16 rounded-lg object-cover shadow-md"
+        />
+        <div className="flex flex-col gap-1">
+          <h2 className="text-white text-base font-semibold leading-tight">
+            {name}
+          </h2>
+          <p className="text-zinc-400 text-sm">{artist}</p>
+          {Album && <p className="text-zinc-500 text-xs">{Album}</p>}
         </div>
       </div>
     </div>
