@@ -14,6 +14,7 @@ function Search() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ term: searchTerm }),
       });
+      setSelected(null);
 
       const data = await response.json();
       setSearchResults(data.results);
@@ -54,6 +55,11 @@ function Search() {
           onSelect={() => handleSelect(index)}
         />
       ))}
+      {selected !== null && (
+        <button className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md ml-2">
+          Download
+        </button>
+      )}
     </div>
   );
 }
