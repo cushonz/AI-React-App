@@ -1,0 +1,21 @@
+services:
+  playlist-ai:
+    build:
+      context: .
+      target: dev
+    container_name: playlist-ai-dev
+    ports:
+      - "5173:5173"
+      - "3001:3001"
+    volumes:
+      - ./src:/app/src
+      - ./server/data:/app/server/data
+      - ./server:/app/server
+      - ./index.html:/app/index.html
+      - ./vite.config.js:/app/vite.config.js
+      - /home/admin/Share/Music/downloads:/home/admin/Share/Music/downloads
+    env_file:
+      - ./server/.env
+    environment:
+      - VITE_API_URL=http://localhost:3001
+    restart: unless-stopped

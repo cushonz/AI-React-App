@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const { exec } = require("child_process");
+const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 const Anthropic = require("@anthropic-ai/sdk");
 
@@ -15,17 +17,47 @@ const client = new Anthropic({
 const app = express();
 const PORT = 3001;
 
-app.use(cors()); // Allow requests from React (different port)
-app.use(express.json()); // Parse incoming JSON request bodies
+app.use(cors());
+app.use(express.json());
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const MUSIC_FOLDER = "/home/admin/Share/Music/downloads";
+const HISTORY_FILE = path.join(__dirname, "..", "data", "history.json");
+
+// ─── History Helpers ─────────────────────────────────────────────────────────
+
+function readHistory() {
+  try {
+    if (!fs.existsSync(HISTORY_FILE)) return [];
+    const raw = fs.readFileSync(HISTORY_FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error("Error reading history:", error);
+    return [];
+  }
+}
+
+function appendToHistory(songs) {
+  try {
+    fs.mkdirSync(path.dirname(HISTORY_FILE), { recursive: true });
+    const existing = readHistory();
+    const timestamp = new Date().toISOString();
+    const newEntries = songs.map((song) => ({
+      name: song.name,
+      artist: song.artist,
+      recommendedAt: timestamp,
+    }));
+    const updated = [...existing, ...newEntries];
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify(updated, null, 2));
+    console.log(`History updated — ${updated.length} total songs on record`);
+  } catch (error) {
+    console.error("Error writing history:", error);
+  }
+}
 
 // ─── Helper Functions ────────────────────────────────────────────────────────
 
-// Fetches song metadata from iTunes for a given artist and song name
-// Returns albumArt URL, album name, and artist name — or null if not found
 async function getSongMetadata(artist, name) {
   try {
     const term = encodeURIComponent(`${artist} ${name}`);
@@ -45,7 +77,6 @@ async function getSongMetadata(artist, name) {
   }
 }
 
-// Wraps exec in a Promise so we can use async/await
 function executeCommand(command) {
   return new Promise((resolve, reject) => {
     exec(command, (error, stdout, stderr) => {
@@ -58,21 +89,16 @@ function executeCommand(command) {
   });
 }
 
-// Downloads a single song via yt-dlp, then embeds proper ID3 tags
-// and iTunes artwork using ffmpeg
 async function downloadSong(artist, name) {
-  // Fetch album and cover art metadata from iTunes
   const metadata = await getSongMetadata(artist, name);
   const album = metadata?.album || "Unknown Album";
   const artworkUrl = metadata?.albumArt || null;
 
-  // Safe filename — remove characters that could break file paths
   const safeFilename = `${artist} - ${name}`.replace(/[/\\?%*:|"<>]/g, "");
   const outputPath = `${MUSIC_FOLDER}/${safeFilename}.mp3`;
   const tempPath = `${MUSIC_FOLDER}/${safeFilename}_temp.mp3`;
   const artworkPath = `/tmp/${safeFilename}.jpg`;
 
-  // Step 1 — Download audio from YouTube as a temp file
   console.log(`Downloading: ${artist} - ${name}`);
   const downloadCommand = `yt-dlp "ytsearch1:${artist} ${name}" \
     --extract-audio \
@@ -82,15 +108,12 @@ async function downloadSong(artist, name) {
     -o "${tempPath}"`;
   await executeCommand(downloadCommand);
 
-  // Step 2 — Download iTunes artwork to a temp file
   if (artworkUrl) {
     console.log(`Fetching artwork for: ${name}`);
-    // Get higher resolution artwork by replacing 100x100 with 600x600
     const highResArt = artworkUrl.replace("100x100", "600x600");
     await executeCommand(`curl -s -o "${artworkPath}" "${highResArt}"`);
   }
 
-  // Step 3 — Embed tags and artwork using ffmpeg
   console.log(`Embedding tags for: ${name}`);
   const artworkInput = artworkUrl ? `-i "${artworkPath}"` : "";
   const artworkMap = artworkUrl
@@ -106,14 +129,12 @@ async function downloadSong(artist, name) {
     "${outputPath}"`;
   await executeCommand(ffmpegCommand);
 
-  // Step 4 — Clean up temp files
   await executeCommand(`rm -f "${tempPath}"`);
   if (artworkUrl) await executeCommand(`rm -f "${artworkPath}"`);
 
   console.log(`✅ Done: ${artist} - ${name} [${album}]`);
 }
 
-// Downloads all songs in sequence (one at a time to avoid rate limiting)
 async function downloadAll(songs) {
   for (const song of songs) {
     try {
@@ -126,17 +147,21 @@ async function downloadAll(songs) {
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
-// POST /generate
-// Accepts a vibe string, asks Claude for song recommendations,
-// enriches each song with album art, and returns the list to React
 app.post("/generate", async (req, res) => {
   const { vibe } = req.body;
 
   try {
-    // Ask Claude for song recommendations based on the vibe
+    const history = readHistory();
+    const historyBlock =
+      history.length > 0
+        ? `\n\nDo NOT recommend any of these songs — they have already been recommended before:\n${history
+            .map((s) => `- "${s.name}" by ${s.artist}`)
+            .join("\n")}`
+        : "";
+
     const message = await client.messages.create({
       model: "claude-opus-4-6",
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         {
           role: "user",
@@ -146,7 +171,7 @@ Your job is to recommend 15 songs that match the vibe. Follow these rules:
 - Primarily recommend artists the user did NOT mention, but you may sprinkle in 1-2 songs from the artists they listed if they are a perfect fit
 - Prioritize deep cuts and lesser known tracks over obvious hits
 - Match the mood, tempo, and energy of the described vibe
-- Vary the artists — don't repeat the same artist more than once
+- Vary the artists — don't repeat the same artist more than once${historyBlock}
 
 User input: "${vibe}"
 
@@ -156,12 +181,12 @@ Respond ONLY with a JSON array, no other text:
       ],
     });
 
-    // Strip markdown code fences Claude sometimes wraps around JSON
     const rawText = message.content[0].text;
     const cleaned = rawText.replace(/```json|```/g, "").trim();
     const songs = JSON.parse(cleaned);
 
-    // Fetch metadata for all songs simultaneously
+    appendToHistory(songs);
+
     const enrichedSongs = await Promise.all(
       songs.map(async (song) => {
         const metadata = await getSongMetadata(song.artist, song.name);
@@ -176,9 +201,6 @@ Respond ONLY with a JSON array, no other text:
   }
 });
 
-// POST /download-songs
-// Accepts a list of songs, searches YouTube for each,
-// downloads them via yt-dlp into the Navidrome music folder
 app.post("/download-songs", async (req, res) => {
   const { songs } = req.body;
   try {
@@ -190,6 +212,17 @@ app.post("/download-songs", async (req, res) => {
   } catch (error) {
     console.error("Error downloading songs:", error);
     res.status(500).json({ error: "Failed to download songs" });
+  }
+});
+
+app.delete("/history", (req, res) => {
+  try {
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify([], null, 2));
+    console.log("History wiped");
+    res.json({ success: true, message: "History cleared" });
+  } catch (error) {
+    console.error("Error clearing history:", error);
+    res.status(500).json({ error: "Failed to clear history" });
   }
 });
 
