@@ -66,7 +66,7 @@ function Dashboard() {
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-950 items-center justify-center p-4 gap-8">
-      <div className="flex flex-col min-h-screen bg-zinc-950 items-center justify-center p-4 gap-8">
+      <div className="flex flex-col bg-zinc-950 items-center justify-center p-4 gap-8">
         <h1
           className={`text-3xl font-bold text-white ${isThinking ? "animate-bounce" : ""}`}
         >
