@@ -10,6 +10,7 @@ function Dashboard() {
 
   async function handleGenerate() {
     setIsThinking(true);
+    setIsDownloaded(false);
     try {
       const response = await fetch("http://localhost:3001/generate", {
         method: "POST",
@@ -31,9 +32,15 @@ function Dashboard() {
     setSongs(songs.filter((_, i) => i !== index));
   }
 
+  function resetList() {
+    setSongs([]);
+    setVibe("");
+  }
+
   async function requestDownload() {
     try {
       setIsDownloading(true);
+
       const response = await fetch("http://localhost:3001/download-songs", {
         method: "POST",
         headers: {
@@ -91,12 +98,20 @@ function Dashboard() {
           ))}
         </div>
         {songs.length > 0 && (
-          <button
-            className="bg-green-500 rounded-lg font-bold py-3 w-full"
-            onClick={requestDownload}
-          >
-            Download
-          </button>
+          <div className="flex w-full p-4 gap-4">
+            <button
+              className="bg-green-500 hover:bg-green-400 rounded-lg font-bold py-3 w-full"
+              onClick={requestDownload}
+            >
+              Download
+            </button>
+            <button
+              className="bg-red-500 hover:bg-red-400 rounded-lg font-bold py-3 w-full"
+              onClick={resetList}
+            >
+              Reset
+            </button>
+          </div>
         )}
       </div>
     </div>
