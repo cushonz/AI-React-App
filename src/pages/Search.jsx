@@ -5,6 +5,7 @@ import { useState } from "react";
 function Search() {
   const [searchTerm, setSearchTerm] = useState("");
   const [SearchResults, setSearchResults] = useState([]);
+  const [selected, setSelected] = useState(null);
 
   async function handleSearch() {
     try {
@@ -20,6 +21,10 @@ function Search() {
       console.error("Error searching iTunes:", error);
       // show user an error message
     }
+  }
+
+  function handleSelect(index) {
+    setSelected(index);
   }
 
   return (
@@ -45,6 +50,8 @@ function Search() {
           name={result.name}
           artist={result.artist}
           albumArt={result.albumArt}
+          selected={selected === index}
+          onSelect={() => handleSelect(index)}
         />
       ))}
     </div>
