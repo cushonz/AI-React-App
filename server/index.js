@@ -80,36 +80,35 @@ function executeCommand(command) {
 // Downloads a single song via yt-dlp, then embeds proper ID3 tags
 // and iTunes artwork using ffmpeg
 async function downloadSong(artist, name) {
-  // Fetch album and cover art metadata from iTunes
   const metadata = await getSongMetadata(artist, name);
   const album = metadata?.album || "Unknown Album";
   const artworkUrl = metadata?.albumArt || null;
 
-  // Safe filename — remove characters that could break file paths
   const safeFilename = `${artist} - ${name}`.replace(/[/\\?%*:|"<>]/g, "");
+  const safeSearchTerm = `${artist} ${name}`.replace(/['"]/g, "");
+  const safeTitle = name.replace(/"/g, "'");
+  const safeArtist = artist.replace(/"/g, "'");
+  const safeAlbum = album.replace(/"/g, "'");
+
   const outputPath = `${MUSIC_FOLDER}/${safeFilename}.mp3`;
   const tempPath = `${MUSIC_FOLDER}/${safeFilename}_temp.mp3`;
   const artworkPath = `/tmp/${safeFilename}.jpg`;
 
-  // Step 1 — Download audio from YouTube as a temp file
   console.log(`Downloading: ${artist} - ${name}`);
-  const downloadCommand = `yt-dlp "ytsearch1:${artist} ${name}" \
-    --extract-audio \
-    --audio-format mp3 \
-    --audio-quality 0 \
-    --no-embed-thumbnail \
-    -o "${tempPath}"`;
+  const downloadCommand = `yt-dlp "ytsearch1:${safeSearchTerm}" \
+  --extract-audio \
+  --audio-format mp3 \
+  --audio-quality 0 \
+  --no-embed-thumbnail \
+  -o "${tempPath}"`;
   await executeCommand(downloadCommand);
 
-  // Step 2 — Download iTunes artwork to a temp file
   if (artworkUrl) {
     console.log(`Fetching artwork for: ${name}`);
-    // Get higher resolution artwork by replacing 100x100 with 600x600
     const highResArt = artworkUrl.replace("100x100", "600x600");
     await executeCommand(`curl -s -o "${artworkPath}" "${highResArt}"`);
   }
 
-  // Step 3 — Embed tags and artwork using ffmpeg
   console.log(`Embedding tags for: ${name}`);
   const artworkInput = artworkUrl ? `-i "${artworkPath}"` : "";
   const artworkMap = artworkUrl
@@ -118,14 +117,13 @@ async function downloadSong(artist, name) {
 
   const ffmpegCommand = `ffmpeg -y -i "${tempPath}" ${artworkInput} \
     ${artworkMap} \
-    -metadata title="${name}" \
-    -metadata artist="${artist}" \
-    -metadata album="${album}" \
+    -metadata title="${safeTitle}" \
+    -metadata artist="${safeArtist}" \
+    -metadata album="${safeAlbum}" \
     -c:a copy \
     "${outputPath}"`;
   await executeCommand(ffmpegCommand);
 
-  // Step 4 — Clean up temp files
   await executeCommand(`rm -f "${tempPath}"`);
   if (artworkUrl) await executeCommand(`rm -f "${artworkPath}"`);
 
