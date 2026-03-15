@@ -49,7 +49,7 @@ function searchItunes(term) {
   return new Promise((resolve, reject) => {
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(
       term,
-    )}&limit=5&entity=song`;
+    )}&limit=50&entity=song`;
     fetch(url)
       .then((response) => response.json())
       .then((data) =>
